@@ -135,6 +135,9 @@ classifier = nn.Sequential(OrderedDict([
 
 # Replacing the pretrained model classifier with our classifier
 model.fc = classifier
+model.classifier[4]= nn.Linear(4096,1024)
+model.classifier[6] = nn.Linear(1024,2)
+print(model.eval())
 
 
 # Function to train the model
@@ -198,7 +201,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=10):
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
-    print('Best valid accuracy: {:4f}'.format(best_acc))
 
     # load best model weights
     model.load_state_dict(best_model_wts)
@@ -220,8 +222,8 @@ optimizer = optim.SGD(model.fc.parameters(), lr=.0006, momentum=0.9)
 # Decay LR by a factor of 0.1 every 5 epochs
 exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
 
-model_ft = train_model(model, criterion, optimizer, exp_lr_scheduler,
-                       num_epochs=4)
+model = train_model(model, criterion, optimizer, exp_lr_scheduler,
+                       num_epochs=10)
 
 
 # Do validation on the test set
@@ -240,10 +242,9 @@ def test(model, dataloaders, device):
         ps = torch.exp(output)
         equality = (labels.data == ps.max(1)[1])
         accuracy += equality.type_as(torch.FloatTensor()).mean()
-        print("accuracy:: ", accuracy)
         
-        print("Testing Accuracy: {:.3f}".format(
-            accuracy / len(dataloaders['valid'])))
+        # print("Testing Accuracy: {:.3f}".format(
+        #     accuracy / len(dataloaders['valid'])))
 
 
 test(model, dataloaders, device)
@@ -261,15 +262,6 @@ Remember that we'll want to completely rebuild the model later so we can use it 
 
 model.class_to_idx = dataloaders['train'].dataset.class_to_idx
 model.epochs = num_epochs
-checkpoint = {'input_size': [3, 224, 224],
-              'batch_size': dataloaders['train'].batch_size,
-              'output_size': 2,
-              'state_dict': model.state_dict(),
-              'data_transforms': data_transforms,
-              'optimizer_dict': optimizer.state_dict(),
-              'class_to_idx': model.class_to_idx,
-              'epoch': model.epochs}
-torch.save(checkpoint, '8961_checkpoint.pth')
 
 """# Loading the checkpoint
 
@@ -277,39 +269,11 @@ At this point it's good to write a function that can load a checkpoint and rebui
 """
 
 
-# Load the trained model from here:
-# !gdown https://drive.google.com/uc?id=16RqsH1oCROSJiCR0f2gWCs4Xaz3JRTw9
-# https://drive.google.com/open?id=16RqsH1oCROSJiCR0f2gWCs4Xaz3JRTw9
-
-# Write a function that loads a checkpoint and rebuilds the model
-
-def load_checkpoint(filepath):
-    checkpoint = torch.load(filepath)
-    #  todo: ask if we have to give pretrained=true
-    model = models.alexnet()
-
-    # Our input_size matches the in_features of pretrained model
-    input_size = 2048
-    output_size = 2
-
-    classifier = nn.Sequential(OrderedDict([
-        ('fc1', nn.Linear(2048, 512)),
-        ('relu', nn.ReLU()),
-        # ('dropout1', nn.Dropout(p=0.2)),
-        ('fc2', nn.Linear(512, 2)),
-        ('output', nn.LogSoftmax(dim=1))
-    ]))
-
-    # Replacing the pretrained model classifier with our classifier
-    model.fc = classifier
-
-    model.load_state_dict(checkpoint['state_dict'])
-
-    return model, checkpoint['class_to_idx']
-
 
 # Get index to class mapping
-loaded_model, class_to_idx = load_checkpoint('8961_checkpoint.pth')
+# loaded_model, class_to_idx = load_checkpoint('8961_checkpoint.pth')
+# print(loaded_model.eval())
+class_to_idx = model.class_to_idx
 idx_to_class = {v: k for k, v in class_to_idx.items()}
 
 """# Inference for classification
@@ -376,16 +340,30 @@ def predict(image_path, model, topk=2):
     probabilities = torch.exp(output).data.numpy()[0]
 
     top_idx = np.argsort(probabilities)[-topk:][::-1]
-    print(len(probabilities))
     top_class = [idx_to_class[x] for x in top_idx]
     top_probability = probabilities[top_idx]
 
     return top_probability, top_class
 
 
-print("predict",
-      predict(data_dir + '/valid/malignant/SOB_M_DC-14-2523-100-023.png',
-              loaded_model))
+prediction = predict(data_dir + '/valid/malignant/SOB_M_DC-14-2523-100-023.png',
+              model)
+(top_probability, top_class) = prediction
+
+def getProbabilities(top_probability, top_class):    
+    first_percentage_raw = np.array(top_probability[0])
+    second_percentage_raw = np.array(top_probability[1])
+    total = first_percentage_raw + second_percentage_raw
+    first_percentage = first_percentage_raw / total 
+    second_percentage = second_percentage_raw/total
+
+    obj = {}
+    obj[top_class[0]] = first_percentage
+    obj[top_class[1]] = second_percentage
+    return obj
+
+print(getProbabilities(top_probability, top_class))
+
 
 """# Sanity Checking
 

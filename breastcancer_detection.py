@@ -116,6 +116,9 @@ Resnet introduces a structure called residual learning unit to alleviate the deg
 
 # 1. Load resnet-152 pre-trained network
 model = models.resnet152(pretrained=True)
+# print(model)
+# import sys
+# sys.exit(0)
 # Freeze parameters so we don't backprop through them
 
 for param in model.parameters():
@@ -405,7 +408,7 @@ def predict(image_path, model, topk=2):
     pobabilities = torch.exp(output).data.numpy()[0]
 
     top_idx = np.argsort(pobabilities)[-topk:][::-1]
-    print(pobabilities)
+   
     top_class = [idx_to_class[x] for x in top_idx]
     top_probability = pobabilities[top_idx]
 
